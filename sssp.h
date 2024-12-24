@@ -5,8 +5,7 @@
 using namespace std;
 using namespace parlay;
 
-constexpr int NUM_SRC = 10;
-constexpr int NUM_ROUND = 5;
+constexpr int NUM_SRC = 1;
 
 constexpr size_t LOCAL_QUEUE_SIZE = 4096;
 constexpr size_t DEG_THLD = 20;
@@ -15,7 +14,7 @@ constexpr size_t SSSP_SAMPLES = 1000;
 enum Algorithm { rho_stepping = 0, delta_stepping, bellman_ford };
 
 class SSSP {
- protected:
+protected:
   const Graph &G;
   bool sparse;
   int sd_scale;
@@ -32,7 +31,7 @@ class SSSP {
           compare_and_swap(&in_next_frontier[v], false, true)) {
         bag.insert(v);
       }
-    } else {  // dense
+    } else { // dense
       if (!in_frontier[v] && !in_next_frontier[v]) {
         in_next_frontier[v] = true;
       }
@@ -224,7 +223,7 @@ class SSSP {
   virtual void init() = 0;
   virtual EdgeTy get_threshold() = 0;
 
- public:
+public:
   SSSP() = delete;
   SSSP(const Graph &_G) : G(_G), bag(G.n) {
     dist = sequence<EdgeTy>::uninitialized(G.n);
@@ -278,7 +277,7 @@ class Rho_Stepping : public SSSP {
   size_t rho;
   uint32_t seed;
 
- public:
+public:
   Rho_Stepping(const Graph &_G, size_t _rho = 1 << 20) : SSSP(_G), rho(_rho) {
     seed = 0;
   }
@@ -318,7 +317,7 @@ class Delta_Stepping : public SSSP {
   EdgeTy delta;
   EdgeTy thres;
 
- public:
+public:
   Delta_Stepping(const Graph &_G, EdgeTy _delta = 1 << 15)
       : SSSP(_G), delta(_delta) {}
   void init() override { thres = 0; }
@@ -329,7 +328,7 @@ class Delta_Stepping : public SSSP {
 };
 
 class Bellman_Ford : public SSSP {
- public:
+public:
   Bellman_Ford(const Graph &_G) : SSSP(_G) {}
   void init() override {}
   EdgeTy get_threshold() override { return DIST_MAX; }
