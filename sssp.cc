@@ -42,11 +42,11 @@ private:
 };
 
 template <class Algo>
-void run(Algo &algo, const Graph &G, int rounds, bool verify) {
+void run(Algo &algo, const Graph &G, int rounds, int sources, bool verify) {
   std::mt19937_64 rng(27491095);
   UniDist<NodeId, std::mt19937_64> udist(G.n - 1, rng);
 
-  for (int v = 0; v < NUM_SRC; v++) {
+  for (int v = 0; v < sources; v++) {
     NodeId s, deg;
     do {
       s = udist();
@@ -100,7 +100,8 @@ int main(int argc, char *argv[]) {
             "\t-s,\tsymmetrized input graph\n"
             "\t-v,\tverify result\n"
             "\t-a,\talgorithm: [rho-stepping] [delta-stepping] [bellman-ford]\n"
-            "\t-n,\number of trials\n",
+            "\t-S,\tnumber of sources\n"
+            "\t-n,\tnumber of trials per source\n",
             argv[0]);
     exit(EXIT_FAILURE);
   }
@@ -113,8 +114,9 @@ int main(int argc, char *argv[]) {
   int algo = rho_stepping;
   char const *FILEPATH = nullptr;
   int rounds = 22;
+  int sources = 1;
 
-  while ((c = getopt(argc, argv, "i:p:a:wsvn:")) != -1) {
+  while ((c = getopt(argc, argv, "i:p:a:wsvn:S:")) != -1) {
     switch (c) {
     case 'i':
       FILEPATH = optarg;
@@ -146,6 +148,9 @@ int main(int argc, char *argv[]) {
     case 'n':
       rounds = atoi(optarg);
       break;
+    case 'S':
+      sources = atoi(optarg);
+      break;
     default:
       fprintf(stderr, "Error: Unknown option %c\n", optopt);
       exit(EXIT_FAILURE);
@@ -163,7 +168,7 @@ int main(int argc, char *argv[]) {
   fprintf(stdout,
           "Running on %s: |V|=%zu, |E|=%zu, param=%s, num_src=%d, "
           "num_round=%d\n",
-          FILEPATH, G.n, G.m, param.c_str(), NUM_SRC, rounds);
+          FILEPATH, G.n, G.m, param.c_str(), sources, rounds);
 
   int sd_scale = G.m / G.n;
   if (algo == rho_stepping) {
@@ -173,7 +178,7 @@ int main(int argc, char *argv[]) {
     }
     Rho_Stepping solver(G, rho);
     solver.set_sd_scale(sd_scale);
-    run(solver, G, rounds, verify);
+    run(solver, G, rounds, sources, verify);
   } else if (algo == delta_stepping) {
     EdgeTy delta = 1 << 15;
     if (param != "") {
@@ -185,11 +190,11 @@ int main(int argc, char *argv[]) {
     }
     Delta_Stepping solver(G, delta);
     solver.set_sd_scale(sd_scale);
-    run(solver, G, rounds, verify);
+    run(solver, G, rounds, sources, verify);
   } else if (algo == bellman_ford) {
     Bellman_Ford solver(G);
     solver.set_sd_scale(sd_scale);
-    run(solver, G, rounds, verify);
+    run(solver, G, rounds, sources, verify);
   }
   return 0;
 }

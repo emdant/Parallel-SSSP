@@ -5,8 +5,6 @@
 using namespace std;
 using namespace parlay;
 
-constexpr int NUM_SRC = 1;
-
 constexpr size_t LOCAL_QUEUE_SIZE = 4096;
 constexpr size_t DEG_THLD = 20;
 constexpr size_t SSSP_SAMPLES = 1000;
