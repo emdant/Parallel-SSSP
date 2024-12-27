@@ -71,9 +71,9 @@ void run(Algo &algo, const Graph &G, int rounds, int sources, bool verify) {
     double average_time = total_time / rounds;
     printf("Average time: %f\n", average_time);
 
-    ofstream ofs("sssp.tsv", ios_base::app);
-    ofs << average_time << '\t';
-    ofs.close();
+    // ofstream ofs("sssp.tsv", ios_base::app);
+    // ofs << average_time << '\t';
+    // ofs.close();
 
     if (verify) {
       printf("Running verifier...\n");
