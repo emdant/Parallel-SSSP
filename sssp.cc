@@ -46,6 +46,7 @@ void run(Algo &algo, const Graph &G, int rounds, int sources, bool verify) {
   std::mt19937_64 rng(27491095);
   UniDist<NodeId, std::mt19937_64> udist(G.n - 1, rng);
 
+  double total_time = 0;
   for (int v = 0; v < sources; v++) {
     NodeId s, deg;
     do {
@@ -54,22 +55,22 @@ void run(Algo &algo, const Graph &G, int rounds, int sources, bool verify) {
     } while (deg == 0);
 
     printf("source %d: %-10d\n", v, s);
-    double total_time = 0;
-    for (int i = 0; i <= rounds; i++) {
+    if (v == 0) {
       internal::timer t;
       algo.sssp(s);
       t.stop();
-      if (i == 0) {
-        printf("Warmup Round: %f\n", t.total_time());
-        fflush(stdout);
-      } else {
-        printf("Round %d: %f\n", i, t.total_time());
-        fflush(stdout);
-        total_time += t.total_time();
-      }
+      printf("Warmup Round: %f\n", t.total_time());
+      fflush(stdout);
     }
-    double average_time = total_time / rounds;
-    printf("Average time: %f\n", average_time);
+
+    for (int i = 0; i < rounds; i++) {
+      internal::timer t;
+      algo.sssp(s);
+      t.stop();
+      printf("Round %d: %f\n", i, t.total_time());
+      fflush(stdout);
+      total_time += t.total_time();
+    }
 
     // ofstream ofs("sssp.tsv", ios_base::app);
     // ofs << average_time << '\t';
@@ -85,6 +86,8 @@ void run(Algo &algo, const Graph &G, int rounds, int sources, bool verify) {
     }
     printf("\n");
   }
+  double average_time = total_time / rounds;
+  printf("Average time: %f\n", average_time);
 }
 
 int main(int argc, char *argv[]) {
