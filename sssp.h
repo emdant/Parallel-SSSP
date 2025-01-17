@@ -22,6 +22,7 @@ protected:
   sequence<NodeId> frontier;
   sequence<atomic<bool>> in_frontier;
   sequence<atomic<bool>> in_next_frontier;
+  // std::atomic<std::size_t> visits{0};
 
   void add_to_frontier(NodeId v) {
     if (sparse) {
@@ -88,12 +89,14 @@ protected:
                 EdgeTy w = G.edge[es].w;
                 temp_dis = min(temp_dis, dist[v] + w);
               }
+              // visits++;
               write_min(&dist[u], temp_dis,
                         [](EdgeTy w1, EdgeTy w2) { return w1 < w2; });
             }
             for (EdgeId es = G.offset[u]; es < G.offset[u + 1]; es++) {
               NodeId v = G.edge[es].v;
               EdgeTy w = G.edge[es].w;
+              // visits++;
               if (write_min(&dist[v], dist[u] + w,
                             [](EdgeTy w1, EdgeTy w2) { return w1 < w2; })) {
                 if (rear < LOCAL_QUEUE_SIZE) {
@@ -129,6 +132,7 @@ protected:
                     EdgeTy w = G.edge[es].w;
                     temp_dist = min(temp_dist, dist[v] + w);
                   }
+                  // visits++;
                   if (write_min(&dist[f], temp_dist,
                                 [](EdgeTy w1, EdgeTy w2) { return w1 < w2; })) {
                     add_to_frontier(f);
@@ -137,6 +141,7 @@ protected:
                 for (EdgeId es = _s; es < _e; es++) {
                   NodeId v = G.edge[es].v;
                   EdgeTy w = G.edge[es].w;
+                  // visits++;
                   if (write_min(&dist[v], dist[f] + w,
                                 [](EdgeTy w1, EdgeTy w2) { return w1 < w2; })) {
                     add_to_frontier(v);
@@ -179,6 +184,7 @@ protected:
                               EdgeTy w = G.edge[es].w;
                               temp_dist = min(temp_dist, dist[v] + w);
                             }
+                            // visits++;
                             if (write_min(&dist[u], temp_dist,
                                           [](EdgeTy w1, EdgeTy w2) {
                                             return w1 < w2;
@@ -189,6 +195,7 @@ protected:
                           for (size_t es = _s; es < _e; es++) {
                             NodeId v = G.edge[es].v;
                             EdgeTy w = G.edge[es].w;
+                            // visits++;
                             if (write_min(&dist[v], dist[u] + w,
                                           [](EdgeTy w1, EdgeTy w2) {
                                             return w1 < w2;
@@ -230,6 +237,7 @@ public:
     in_next_frontier = sequence<atomic<bool>>::uninitialized(G.n);
   }
   sequence<EdgeTy> sssp(NodeId s) {
+    // visits = 0;
     if (!G.weighted) {
       fprintf(stderr, "Error: Input graph is unweighted\n");
       exit(EXIT_FAILURE);
@@ -265,6 +273,8 @@ public:
       // printf("pack: %f\n", t.next_time());
       sparse = next_sparse;
     }
+
+    // std::cout << "Number of relaxations: " << visits << std::endl;
     return dist;
   }
 
