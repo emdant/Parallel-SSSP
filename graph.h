@@ -23,7 +23,7 @@ using namespace parlay;
 
 using NodeId = uint32_t;
 using EdgeId = uint64_t;
-using EdgeTy = uint32_t;
+using EdgeTy = float;
 constexpr int LOG2_WEIGHT = 18;
 constexpr int WEIGHT = 1 << LOG2_WEIGHT;
 
@@ -32,19 +32,19 @@ constexpr EdgeTy DIST_MAX = numeric_limits<EdgeTy>::max() / 2;
 struct Edge {
   NodeId v;
   EdgeTy w;
-  Edge() : v(0), w(0){};
+  Edge() : v(0), w(0) {};
   Edge(NodeId _v, EdgeTy _w) : v(_v), w(_w) {}
-  bool operator<(const Edge& rhs) const {
+  bool operator<(const Edge &rhs) const {
     if (v != rhs.v) {
       return v < rhs.v;
     }
     return w < rhs.w;
   }
-  bool operator!=(const Edge& rhs) const { return v != rhs.v || w != rhs.w; }
+  bool operator!=(const Edge &rhs) const { return v != rhs.v || w != rhs.w; }
 };
 
 class Graph {
- public:
+public:
   size_t n, m;
   sequence<Edge> edge;
   sequence<EdgeId> offset;
@@ -65,7 +65,47 @@ class Graph {
       }
     });
   }
-  void read_pbbs_format(char const* filename) {
+  void read_pbin_format(char const *filename) {
+    using vidType = unsigned int;
+    using eidType = unsigned long;
+    using weight_type = float;
+
+    ifstream file(filename);
+    if (!file.is_open()) {
+      fprintf(stderr, "Error: file %s does not exist\n", filename);
+      exit(EXIT_FAILURE);
+    }
+
+    file.read(reinterpret_cast<char *>(&n), sizeof(int64_t));
+    file.read(reinterpret_cast<char *>(&m), sizeof(int64_t));
+
+    offset = sequence<EdgeId>(n + 1);
+    edge = sequence<Edge>(m);
+
+    vidType *col = new vidType[m];
+    weight_type *weights = new weight_type[m];
+
+    file.read(reinterpret_cast<char *>(offset.begin()),
+              sizeof(eidType) * (n + 1));
+    file.read(reinterpret_cast<char *>(col), sizeof(vidType) * m);
+    file.read(reinterpret_cast<char *>(weights), sizeof(weight_type) * m);
+
+    parallel_for(0, m, [&](size_t i) {
+      edge[i].v = col[i];
+      edge[i].w = weights[i];
+    });
+
+    delete[] col;
+    delete[] weights;
+
+    assert(file.peek() == EOF);
+    file.close();
+
+    assert(symmetrized == true);
+    assert(weighted == true);
+  }
+
+  void read_pbbs_format(char const *filename) {
     auto chars = chars_from_file(string(filename));
     auto tokens_seq = tokens(chars);
     auto header = tokens_seq[0];
@@ -102,27 +142,28 @@ class Graph {
       });
     }
   }
-  void read_gapbs_format(char const* filename) {
+  void read_gapbs_format(char const *filename) {
     ifstream ifs(filename);
     if (!ifs.is_open()) {
       fprintf(stderr, "Error: file %s does not exist\n", filename);
       exit(EXIT_FAILURE);
     }
     bool directed;
-    ifs.read(reinterpret_cast<char*>(&directed), sizeof(bool));
+    ifs.read(reinterpret_cast<char *>(&directed), sizeof(bool));
     assert(directed == !symmetrized);
-    ifs.read(reinterpret_cast<char*>(&m), sizeof(size_t));
-    ifs.read(reinterpret_cast<char*>(&n), sizeof(size_t));
+    ifs.read(reinterpret_cast<char *>(&m), sizeof(size_t));
+    ifs.read(reinterpret_cast<char *>(&n), sizeof(size_t));
     offset = sequence<EdgeId>(n + 1);
     edge = sequence<Edge>(m);
-    ifs.read(reinterpret_cast<char*>(offset.begin()), (n + 1) * sizeof(EdgeId));
-    ifs.read(reinterpret_cast<char*>(edge.begin()), m * sizeof(Edge));
+    ifs.read(reinterpret_cast<char *>(offset.begin()),
+             (n + 1) * sizeof(EdgeId));
+    ifs.read(reinterpret_cast<char *>(edge.begin()), m * sizeof(Edge));
     if (directed) {
       sequence<EdgeId> inv_offset(n + 1);
       sequence<Edge> inv_edge(m);
-      ifs.read(reinterpret_cast<char*>(inv_offset.begin()),
+      ifs.read(reinterpret_cast<char *>(inv_offset.begin()),
                (n + 1) * sizeof(EdgeId));
-      ifs.read(reinterpret_cast<char*>(inv_edge.begin()), m * sizeof(Edge));
+      ifs.read(reinterpret_cast<char *>(inv_edge.begin()), m * sizeof(Edge));
     }
     if (ifs.peek() != EOF) {
       fprintf(stderr, "Error: Bad data\n");
@@ -130,8 +171,8 @@ class Graph {
     }
     ifs.close();
   }
-  void read_galois_format(char const* filename) {
-    FILE* fp = fopen(filename, "r");
+  void read_galois_format(char const *filename) {
+    FILE *fp = fopen(filename, "r");
     if (fp == nullptr) {
       fprintf(stderr, "Error: file %s does not exist\n", filename);
       exit(EXIT_FAILURE);
@@ -144,7 +185,7 @@ class Graph {
       fprintf(stderr, "Error: Read failed\n");
       exit(EXIT_FAILURE);
     }
-    uint64_t* fptr = (uint64_t*)buf.data();
+    uint64_t *fptr = (uint64_t *)buf.data();
     size_t version = *fptr++;
     size_t sizeof_edge_data = *fptr++;
     assert(version == 1);
@@ -157,18 +198,19 @@ class Graph {
     for (size_t i = 1; i <= n; i++) {
       offset[i] = *fptr++;
     }
-    uint32_t* fptr32 = (uint32_t*)fptr;
+    uint32_t *fptr32 = (uint32_t *)fptr;
     for (size_t i = 0; i < m; i++) {
       edge[i].v = *fptr32++;
     }
-    if (m % 2) fptr32++;  // padding
+    if (m % 2)
+      fptr32++; // padding
     for (size_t i = 0; i < m; i++) {
       edge[i].w = *fptr32++;
     }
-    assert((void*)fptr32 == buf.data() + size);
+    assert((void *)fptr32 == buf.data() + size);
     fclose(fp);
   }
-  void read_binary_format(char const* filename) {
+  void read_binary_format(char const *filename) {
     // use mmap by default
     if (weighted == true) {
       fprintf(stderr, "Error: Binary format does not support weighted input\n");
@@ -184,28 +226,28 @@ class Graph {
       fprintf(stderr, "Error: Unable to acquire file stat\n");
       exit(EXIT_FAILURE);
     }
-    char* data =
-        static_cast<char*>(mmap(0, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0));
+    char *data =
+        static_cast<char *>(mmap(0, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0));
     size_t len = sb.st_size;
-    n = reinterpret_cast<uint64_t*>(data)[0];
-    m = reinterpret_cast<uint64_t*>(data)[1];
-    size_t sizes = reinterpret_cast<uint64_t*>(data)[2];
+    n = reinterpret_cast<uint64_t *>(data)[0];
+    m = reinterpret_cast<uint64_t *>(data)[1];
+    size_t sizes = reinterpret_cast<uint64_t *>(data)[2];
     assert(sizes == (n + 1) * 8 + m * 4 + 3 * 8);
     offset = sequence<EdgeId>::uninitialized(n + 1);
     edge = sequence<Edge>::uninitialized(m);
     parallel_for(0, n + 1, [&](size_t i) {
-      offset[i] = reinterpret_cast<uint64_t*>(data + 3 * 8)[i];
+      offset[i] = reinterpret_cast<uint64_t *>(data + 3 * 8)[i];
     });
     parallel_for(0, m, [&](size_t i) {
-      edge[i].v = reinterpret_cast<uint32_t*>(data + 3 * 8 + (n + 1) * 8)[i];
+      edge[i].v = reinterpret_cast<uint32_t *>(data + 3 * 8 + (n + 1) * 8)[i];
     });
 
     if (data) {
-      const void* b = data;
-      munmap(const_cast<void*>(b), len);
+      const void *b = data;
+      munmap(const_cast<void *>(b), len);
     }
   }
-  void read_graph(char const* filename) {
+  void read_graph(char const *filename) {
     size_t idx = string(filename).find_last_of('.');
     if (idx == string::npos) {
       fprintf(stderr, "Error: No file extension provided\n");
@@ -223,12 +265,14 @@ class Graph {
       read_galois_format(filename);
     } else if (subfix == "bin") {
       read_binary_format(filename);
+    } else if (subfix == "pbin") {
+      read_pbin_format(filename);
     } else {
       fprintf(stderr, "Error: Unrecognized file extension\n");
       exit(EXIT_FAILURE);
     }
   }
-  void write_pbbs_format(char const* filename) {
+  void write_pbbs_format(char const *filename) {
     printf("Info: Writing pbbs format\n");
     ofstream ofs(filename);
     if (weighted) {
@@ -252,7 +296,7 @@ class Graph {
     }
     ofs.close();
   }
-  void write_gapbs_format(char const* filename) {
+  void write_gapbs_format(char const *filename) {
     printf("Info: Writing gapbs format\n");
     ofstream ofs(filename);
     if (!ofs.is_open()) {
@@ -260,17 +304,17 @@ class Graph {
       exit(EXIT_FAILURE);
     }
     bool directed = !symmetrized;
-    ofs.write(reinterpret_cast<char*>(&directed), sizeof(bool));
-    ofs.write(reinterpret_cast<char*>(&m), sizeof(size_t));
-    ofs.write(reinterpret_cast<char*>(&n), sizeof(size_t));
-    ofs.write(reinterpret_cast<char*>(offset.begin()),
+    ofs.write(reinterpret_cast<char *>(&directed), sizeof(bool));
+    ofs.write(reinterpret_cast<char *>(&m), sizeof(size_t));
+    ofs.write(reinterpret_cast<char *>(&n), sizeof(size_t));
+    ofs.write(reinterpret_cast<char *>(offset.begin()),
               (n + 1) * sizeof(EdgeId));
     if (weighted) {
-      ofs.write(reinterpret_cast<char*>(edge.begin()), m * sizeof(Edge));
+      ofs.write(reinterpret_cast<char *>(edge.begin()), m * sizeof(Edge));
     } else {
       sequence<NodeId> tmp_edge(m);
       parallel_for(0, m, [&](size_t i) { tmp_edge[i] = edge[i].v; });
-      ofs.write(reinterpret_cast<char*>(tmp_edge.begin()), m * sizeof(NodeId));
+      ofs.write(reinterpret_cast<char *>(tmp_edge.begin()), m * sizeof(NodeId));
     }
     if (directed) {
       sequence<EdgeId> inv_offset(n + 1);
@@ -292,22 +336,22 @@ class Graph {
         sort_inplace(inv_edge.cut(inv_offset[i], inv_offset[i + 1]),
                      [](Edge a, Edge b) { return a < b; });
       });
-      ofs.write(reinterpret_cast<char*>(inv_offset.begin()),
+      ofs.write(reinterpret_cast<char *>(inv_offset.begin()),
                 (n + 1) * sizeof(EdgeId));
       if (weighted) {
-        ofs.write(reinterpret_cast<char*>(inv_edge.begin()), m * sizeof(Edge));
+        ofs.write(reinterpret_cast<char *>(inv_edge.begin()), m * sizeof(Edge));
       } else {
         sequence<NodeId> tmp_edge(m);
         parallel_for(0, m, [&](size_t i) { tmp_edge[i] = inv_edge[i].v; });
-        ofs.write(reinterpret_cast<char*>(tmp_edge.begin()),
+        ofs.write(reinterpret_cast<char *>(tmp_edge.begin()),
                   m * sizeof(NodeId));
       }
     }
     ofs.close();
   }
-  void write_galois_format(char const* filename) {
+  void write_galois_format(char const *filename) {
     printf("Info: Writing galois format\n");
-    FILE* fp = fopen(filename, "w");
+    FILE *fp = fopen(filename, "w");
     uint64_t graph_version = 1, sizeof_edge_data = sizeof(EdgeTy);
     fwrite(&graph_version, sizeof(uint64_t), 1, fp);
     fwrite(&sizeof_edge_data, sizeof(uint64_t), 1, fp);
